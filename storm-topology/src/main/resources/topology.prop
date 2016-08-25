@@ -1,0 +1,94 @@
+{
+  "id": "topology:as-log",
+  "acker_num": 0,
+  "worker_num": 1,
+  "batch_emit_interval": 1000,
+  "spouts": [
+    {
+      "id": "spout:as-log",
+      "parallel": 1,
+      "type" : "kafka",
+      "config" : {
+        "type" : "kafka",
+        "flag": 1,
+        "topic": "as",
+        "consumer": "as",
+        "zk_hosts": "",
+        "zk_root": "",
+        "scheme" : {"type": "line"}
+      }
+    }
+  ],
+  "bolts": [
+    {
+      "id": "bolt:as-log-parser",
+      "type": "kv-parser",
+      "parallel": 4,
+      "grouping": "shuffle",
+      "groupings": [
+        {
+          "type": "shuffle",
+          "id": "spout:as-log"
+        }
+      ],
+      "fields": [
+        {"input_name":"ts", "output_name":"timestamp", "type":"STR", "fn":"echo"}
+      ],
+      "streams": [
+        {"id":"stream:ad-country", "major":"ad_id", "minors":["timestamp", "country"]}
+      ],
+      "config": {
+        "formatter": {
+          "type": "csv",
+          "dimens": ["ts", "platform", "bid_id", "traffic_type", "media_id", "media_name", "media_bundle", "media_domain", "country", "carrier", "isp", "browser", "network", "os", "osv", "device_type", "model", "ifa", "didsha1", "didmd5", "dpidsha1", "dipdmd5", "adx_user_id", "imp_id", "ad_type", "width", "height", "ad_id", "ad_group_id", "ad_campaign_id", "user_id", "commission_rate"]
+        }
+      }
+    },
+    {
+      "id": "bolt:as-country",
+      "type": "sum",
+      "parallel": 4,
+      "grouping": "field",
+      "groupings": [
+        {
+          "type": "field",
+          "id": "bolt:as-log-parser",
+          "stream": "stream:as-country",
+          "fields": ["country"]
+        }
+      ]
+    },
+    {
+      "id": "bolt:as-slot",
+      "type": "sum",
+      "parallel": 4,
+      "grouping": "field",
+      "groupings": [
+        {
+          "type": "field",
+          "id": "bolt:as-log-parser",
+          "stream": "stream:as-slot",
+          "fields": ["slot"]
+        }
+      ]
+    },
+    {
+      "id": "bolt:as-sinker",
+      "type": "hbase",
+      "parallel": 1,
+      "grouping": "all",
+      "groupings": [
+        {
+          "type": "all",
+          "id": "bolt:as-country",
+          "stream": "stream:as-sink"
+        },
+        {
+          "type": "all",
+          "id": "bolt:as-slot",
+          "stream": "stream:as-sink"
+        }
+      ]
+    }
+  ]
+}
